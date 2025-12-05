@@ -50,6 +50,35 @@ cd CubemarsAPI
 uv sync
 ```
 
+### Windows: libusb-1.0.dll Setup
+
+The `libusb-1.0.dll` is automatically installed when you run `uv sync`. You need to copy it to the project root:
+
+**Copy the DLL to project root:**
+
+```bash
+# PowerShell/CMD
+copy .venv\Lib\site-packages\libusb\_platform\windows\x86_64\libusb-1.0.dll .
+```
+
+**Step 2: Add PATH configuration to your Python code**
+
+Add this code at the start of your Python script to help find the DLL:
+
+```python
+import sys
+import os
+
+# Add current directory to PATH to find libusb-1.0.dll on Windows
+if sys.platform == 'win32':
+    os.environ['PATH'] = os.getcwd() + os.pathsep + os.environ['PATH']
+
+from cubemars import CubeMarsMotor
+# Your code here...
+```
+
+**Note**: The examples in this repository (`example_simple_control.py`, `cli.py`) already include this code.
+
 ### Required Python packages
 
 - `python-can` - CAN bus communication
