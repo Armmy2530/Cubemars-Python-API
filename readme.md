@@ -43,7 +43,7 @@ CubemarsAPI/
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Armmy2530/Cubemars-Python-API.git
 cd CubemarsAPI
 
 # Install dependencies using uv
