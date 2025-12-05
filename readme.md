@@ -1,139 +1,396 @@
-# CubeMars AK Series Motor Python API
+# CubeMars Motor Control API
 
-A Python library and CLI tool for controlling CubeMars AK-series motors (AK60-6, AK70-10, etc.) over CAN bus. Built with `asyncio` and `python-can`, supporting Windows and Linux.
+A Python library and CLI tool for controlling CubeMars motors via CAN bus interface.
+
+## Overview
+
+This project provides a high-level Python API for communicating with CubeMars motors over CAN bus. It supports multiple control modes including duty cycle, current, velocity (RPM), and position control.
 
 ## Features
 
-- **Cross-Platform**: Works on Windows (with `gs_usb`/`slcan`) and Linux (SocketCAN).
-- **Async Core**: High-performance non-blocking I/O using `asyncio`.
-- **Sync Wrapper**: Easy-to-use synchronous API for scripts.
-- **Multi-Motor Support**: Control multiple motors on a single bus simultaneously.
-- **CLI Tool**: Built-in command-line interface for testing and configuration.
-- **Continuous Control**: Automatic background sending of speed commands (watchdog prevention).
+- **Simple Python API** - Easy-to-use synchronous wrapper around async motor control
+- **Multiple Control Modes** - Duty cycle, current, brake, RPM, position control
+- **Real-time Feedback** - Get motor position, velocity, current, and temperature
+- **Multi-Motor Support** - Control multiple motors on a shared CAN bus
+- **Interactive CLI** - Terminal application for testing and manual control
+- **Thread-safe** - Background thread handles CAN communication
 
-## Prerequisites
+## Project Structure
 
-### Hardware
-- CubeMars AK-series Motor.
-- USB-to-CAN Adapter (e.g., CANable, CandleLight, or any `gs_usb`/`slcan` compatible device).
-- 24V-48V Power Supply.
-
-### Software
-- Python 3.10 or higher.
-- `uv` package manager (recommended) or `pip`.
+```
+CubemarsAPI/
+├── cubemars/              # Main package
+│   ├── __init__.py       # Package exports
+│   ├── api.py            # High-level synchronous API (CubeMarsMotor, CubeMarsBus)
+│   ├── core.py           # Low-level async motor control (AsyncMotor)
+│   └── protocol.py       # CAN protocol implementation
+├── cli.py                # Interactive terminal application
+├── example_simple_control.py       # Basic usage example
+├── example_multi_motor_control.py  # Multi-motor example
+├── pyproject.toml        # Project configuration
+└── readme.md             # This file
+```
 
 ## Installation
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/CubemarsAPI.git
-   cd CubemarsAPI
-   ```
+### Prerequisites
 
-2. **Install dependencies**:
-   Using `uv` (Recommended):
-   ```bash
-   uv sync
-   ```
-   Or using `pip`:
-   ```bash
-   pip install -r requirements.txt
-   ```
+- Python 3.8 or higher
+- CAN interface hardware (e.g., CANable with candlelight driver)
+- USB drivers (libusb for Windows)
 
-### Windows Specific Setup
-If you are using a `gs_usb` device (like CandleLight) on Windows:
-1. Ensure `libusb-1.0.dll` is in the project root or your system PATH. (A copy is included in this repo).
-2. Install the WinUSB driver for your device using [Zadig](https://zadig.akeo.ie/).
-
-## Usage
-
-### Command Line Interface (CLI)
-
-The CLI allows you to quickly test motor functions without writing code.
+### Install from source
 
 ```bash
-# Run using uv
-uv run -m tools.cli --interface gs_usb --channel 0 --bitrate 1000000 --id 1
+# Clone the repository
+git clone <repository-url>
+cd CubemarsAPI
 
-# Or with python directly
-python -m tools.cli --interface gs_usb --channel 0 --id 1
+# Install dependencies using uv
+uv sync
 ```
 
-**Arguments:**
-- `--interface`: CAN interface type (`gs_usb`, `slcan`, `socketcan`). Default: `gs_usb`.
-- `--channel`: Channel name (e.g., `0` for first USB device, `COM3` for serial). Default: `0`.
-- `--bitrate`: CAN bus speed. Default: `1000000` (1Mbps).
-- `--id`: Motor CAN ID. Default: `1`.
+### Required Python packages
 
-### Python API
+- `python-can` - CAN bus communication
+- `click` - CLI framework (optional, for CLI tool)
 
-#### Single Motor Control
+## CAN Interface Setup
+
+### CANable with Candlelight Driver
+
+If you're using a **CANable adapter with the candlelight firmware**, use these settings:
+
+- **Interface**: `gs_usb`
+- **Channel**: `0`
+- **Bitrate**: `1000000` (1 Mbps - default)
+
+Example:
+```python
+motor = CubeMarsMotor(interface='gs_usb', channel='0', motor_id=20)
+```
+
+### Other CAN Interfaces
+
+The library supports any interface compatible with python-can:
+- `socketcan` (Linux)
+- `slcan` (Serial CAN)
+- `pcan` (PEAK CAN)
+- `vector` (Vector hardware)
+
+## Available API
+
+### CubeMarsMotor Class
+
+Main class for controlling a single motor.
+
+```python
+from cubemars import CubeMarsMotor
+
+# Create motor instance
+motor = CubeMarsMotor(
+    interface='gs_usb',  # CAN interface type
+    channel='0',         # CAN channel
+    bitrate=1000000,     # CAN bitrate (optional, default: 1000000)
+    motor_id=20          # Motor CAN ID
+)
+```
+
+#### Control Methods
+
+| Method | Description | Parameters |
+|--------|-------------|------------|
+| `set_duty(duty)` | Set duty cycle | `duty`: 0.0 to 1.0 |
+| `set_current(current)` | Set current | `current`: Amps |
+| `set_brake_current(current)` | Set brake current | `current`: Amps |
+| `set_rpm(rpm)` | Set velocity | `rpm`: RPM |
+| `set_pos(pos, spd, accel)` | Set position | `pos`: degrees, `spd`: speed (default: 12000), `accel`: acceleration (default: 40000) |
+| `set_origin(mode)` | Set origin point | `mode`: 0=Temp, 1=Perm, 2=Restore |
+| `close()` | Stop motor and cleanup | - |
+
+#### Feedback Property
+
+Access real-time motor feedback:
+
+```python
+fb = motor.feedback
+
+print(f"Position: {fb.position}°")
+print(f"Velocity: {fb.velocity} RPM")
+print(f"Current: {fb.current} A")
+print(f"Temperature: {fb.temperature}°C")
+print(f"Error Code: {fb.error_code}")
+```
+
+### CubeMarsBus Class
+
+For controlling multiple motors on the same CAN bus (more efficient):
+
+```python
+from cubemars import CubeMarsBus, CubeMarsMotor
+
+# Create shared bus
+bus = CubeMarsBus.get_or_create('gs_usb', '0', bitrate=1000000)
+
+# Create motors using shared bus
+motor1 = CubeMarsMotor(motor_id=1, bus=bus)
+motor2 = CubeMarsMotor(motor_id=2, bus=bus)
+
+# Control motors
+motor1.set_rpm(1000)
+motor2.set_rpm(2000)
+
+# Cleanup
+motor1.close()
+motor2.close()
+bus.release()
+```
+
+## Examples
+
+### Basic Single Motor Control
 
 ```python
 from cubemars import CubeMarsMotor
 import time
 
-# Initialize motor (automatically creates bus connection)
-# For Windows/CandleLight: interface='gs_usb', channel='0'
-# For Linux/SocketCAN: interface='socketcan', channel='can0'
-with CubeMarsMotor(interface='gs_usb', channel='0', motor_id=1) as motor:
+# Connect to motor
+with CubeMarsMotor(interface='gs_usb', channel='0', motor_id=20) as motor:
+    print("Motor Connected!")
     
-    # Set Velocity Mode (RPM)
-    print("Running at 500 RPM...")
-    motor.set_rpm(500)
+    # Velocity control - spin at 2000 RPM
+    print("Spinning at 2000 RPM...")
+    motor.set_rpm(2000)
+    time.sleep(3)
+    
+    # Position control - move to 180 degrees
+    print("Moving to 180 degrees...")
+    motor.set_pos(180)
     time.sleep(2)
     
-    # Read Feedback
+    # Get feedback
     fb = motor.feedback
-    print(f"Pos: {fb.position:.2f}°, Vel: {fb.velocity:.0f} RPM, Temp: {fb.temperature}°C")
+    print(f"Position: {fb.position}°, Velocity: {fb.velocity} RPM")
     
-    # Stop
-    motor.set_rpm(0)
+    # Motor automatically stops when exiting 'with' block
 ```
 
-#### Multi-Motor Control
-
-The API automatically manages the shared CAN bus connection. Just create multiple motor instances with the same interface settings.
+### Multi-Motor Control
 
 ```python
-from cubemars import CubeMarsMotor
+from cubemars import CubeMarsBus, CubeMarsMotor
 import time
 
-# Initialize motors
-motor1 = CubeMarsMotor(interface='gs_usb', channel='0', motor_id=1)
-motor2 = CubeMarsMotor(interface='gs_usb', channel='0', motor_id=2)
+# Create shared bus for better performance
+bus = CubeMarsBus.get_or_create('gs_usb', '0')
+
+# Create two motors
+motor1 = CubeMarsMotor(motor_id=1, bus=bus)
+motor2 = CubeMarsMotor(motor_id=2, bus=bus)
 
 try:
-    # Control motors independently
-    motor1.set_rpm(200)
-    motor2.set_rpm(-200)
+    # Control both motors simultaneously
+    motor1.set_pos(90)
+    motor2.set_pos(180)
     
-    time.sleep(2)
+    time.sleep(3)
     
-    # Read feedback
-    print(f"Motor 1: {motor1.feedback.velocity} RPM")
-    print(f"Motor 2: {motor2.feedback.velocity} RPM")
-
+    # Monitor both motors
+    print(f"Motor 1: {motor1.feedback.position}°")
+    print(f"Motor 2: {motor2.feedback.position}°")
+    
 finally:
     motor1.close()
     motor2.close()
+    bus.release()
 ```
 
-## API Reference
+### Current Control
 
-### `CubeMarsMotor` Methods
+```python
+from cubemars import CubeMarsMotor
+import time
 
-- `set_duty(duty)`: Set duty cycle (-1.0 to 1.0).
-- `set_current(current)`: Set torque current (Amps).
-- `set_brake_current(current)`: Set brake current (Amps).
-- `set_rpm(rpm)`: Set velocity (Electrical RPM). **Sends continuously**.
-- `set_pos(pos)`: Set position (Degrees).
-- `set_pos_spd(pos, spd, accel)`: Set position with speed/accel limits.
-- `set_origin(mode)`: Set zero position (0=Temp, 1=Perm).
-- `feedback`: Property returning `MotorFeedback` object (position, velocity, current, temperature, error).
+with CubeMarsMotor(interface='gs_usb', channel='0', motor_id=20) as motor:
+    # Apply 2A current for 1 second
+    motor.set_current(2.0)
+    time.sleep(1)
+    
+    # Stop (0 current)
+    motor.set_current(0.0)
+```
+
+## Interactive CLI
+
+The project includes a powerful interactive CLI for testing and manual motor control.
+
+### Starting the CLI
+
+```bash
+# Interactive mode - connect manually
+python cli.py
+
+# Auto-connect mode
+python cli.py gs_usb 0 20
+```
+
+### CLI Commands
+
+#### Connection Commands
+```
+connect [interface] [channel] [motor_id]  # Connect to motor
+disconnect                                 # Disconnect from motor
+status                                     # Show connection status and feedback
+```
+
+#### Control Commands
+```
+duty <value>                    # Set duty cycle (0.0 to 1.0)
+current <amps>                  # Set current in Amps
+brake <amps>                    # Set brake current
+rpm <value>                     # Set velocity in RPM
+pos <degrees> [speed] [accel]   # Move to position
+origin <mode>                   # Set origin (0=Temp, 1=Perm, 2=Restore)
+stop                            # Emergency stop (current = 0)
+```
+
+#### Monitoring Commands
+```
+monitor [on|off]   # Toggle real-time feedback display
+feedback           # Show current feedback once
+```
+
+#### Utility Commands
+```
+help    # Show all commands
+clear   # Clear screen
+exit    # Exit application
+```
+
+### Example CLI Session
+
+```
+$ python cli.py
+
+============================================================
+  CubeMars Motor Control - Interactive CLI
+============================================================
+
+Type 'help' for available commands, 'exit' to quit
+
+motor> connect gs_usb 0 20
+Connecting to motor 20 on gs_usb:0...
+✓ Connected successfully!
+
+--- Motor Feedback ---
+Position:        0.00°
+Velocity:        0.0 RPM
+Current:         0.00 A
+Temperature:    25.0°C
+Error Code:   0
+---------------------
+
+motor[20]> rpm 1000
+✓ Set RPM to 1000.0
+
+motor[20]> monitor on
+Monitoring started (type commands normally, monitor runs in background)
+
+motor[20]> 
+[Pos:   45.2° | Vel: 1000.0 RPM | Cur:  0.85 A | Temp:  26.5°C]
+
+motor[20]> pos 180
+✓ Moving to 180.0° (speed: 12000, accel: 40000)
+
+motor[20]> monitor off
+Monitoring stopped
+
+motor[20]> feedback
+
+--- Motor Feedback ---
+Position:      180.00°
+Velocity:        0.0 RPM
+Current:         0.00 A
+Temperature:    27.2°C
+Error Code:   0
+---------------------
+
+motor[20]> stop
+✓ Motor stopped
+
+motor[20]> exit
+Exiting...
+Cleaning up...
+Disconnecting...
+✓ Disconnected
+Goodbye!
+```
+
+## Notes
+
+### CANable with Candlelight Driver
+
+**Important**: If you're using a CANable adapter with the candlelight firmware/driver:
+- Always use `interface='gs_usb'` 
+- Always use `channel='0'`
+- The default bitrate of 1000000 (1 Mbps) should work for most CubeMars motors
+
+### Windows USB Driver
+
+On Windows, you may need to install libusb drivers. The library automatically adds the current directory to PATH to find `libusb-1.0.dll`.
+
+### Thread Safety
+
+The API uses a background thread to handle CAN communication, allowing you to call motor methods from your main thread without dealing with asyncio.
+
+### Error Handling
+
+Always use context managers (`with` statement) or call `close()` to ensure proper cleanup:
+
+```python
+# Good - automatic cleanup
+with CubeMarsMotor(...) as motor:
+    motor.set_rpm(1000)
+
+# Also good - manual cleanup
+motor = CubeMarsMotor(...)
+try:
+    motor.set_rpm(1000)
+finally:
+    motor.close()
+```
 
 ## Troubleshooting
 
-- **"No backend was available"**: Ensure `libusb-1.0.dll` is present (Windows) or drivers are installed.
-- **"Task was destroyed but it is pending"**: Ensure you call `motor.close()` or use the `with` statement to clean up resources.
-- **Motor not moving**: Check power supply voltage and CAN termination (120Ω resistor).
+### Can't connect to CAN bus
+
+1. Check that your CAN adapter is properly connected
+2. Verify the interface name and channel number
+3. On Linux, ensure you have permissions to access the CAN device
+4. For CANable with candlelight: use `gs_usb` interface and channel `0`
+
+### No motor feedback
+
+1. Verify the motor ID is correct
+2. Check CAN bus wiring and termination resistors
+3. Ensure motor is powered on
+4. Verify bitrate matches motor configuration (typically 1 Mbps)
+
+### Motor not responding
+
+1. Check motor power supply
+2. Verify motor CAN ID configuration
+3. Try sending a stop command: `motor.set_current(0.0)`
+4. Check for error codes in feedback: `motor.feedback.error_code`
+
+## License
+
+[Add your license here]
+
+## Contributing
+
+[Add contribution guidelines here]
+
+## Support
+
+[Add contact/support information here]

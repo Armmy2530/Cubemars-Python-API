@@ -190,8 +190,5 @@ class CubeMarsMotor:
     def set_pos(self, pos: float, spd: int = 12000, accel: int = 40000):
         self._run_coro(self._motor.set_pos(pos, spd, accel))
 
-    def set_pos_spd(self, pos: float, spd: int, accel: int):
-        self._run_coro(self._motor.set_pos_spd(pos, spd, accel))
-
     def set_origin(self, mode: int):
         self._run_coro(self._motor.set_origin(mode))

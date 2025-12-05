@@ -12,7 +12,7 @@ def main():
     # Example configuration - change these to match your setup
     INTERFACE = 'gs_usb'
     CHANNEL = '0'
-    MOTOR_ID = 1
+    MOTOR_ID = 20
 
     print(f"Connecting to motor {MOTOR_ID} on {CHANNEL}...")
 
