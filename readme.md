@@ -326,6 +326,47 @@ Disconnecting...
 Goodbye!
 ```
 
+## Using in Your Project
+
+### Method 1: Copy the Module
+
+Copy the `cubemars` folder into your project:
+
+```
+YourProject/
+├── cubemars/          # Copy this folder
+│   ├── __init__.py
+│   ├── api.py
+│   ├── core.py
+│   └── protocol.py
+└── your_code.py
+```
+
+Then import and use:
+
+```python
+from cubemars import CubeMarsMotor
+
+motor = CubeMarsMotor(interface='gs_usb', channel='0', motor_id=20)
+motor.set_rpm(1000)
+```
+
+### Method 2: Install from GitHub with uv
+
+Add to your `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "cubemars-motor-control @ git+https://github.com/Armmy2530/Cubemars-Python-API.git",
+]
+```
+
+Then run:
+```bash
+uv sync
+```
+
 ## Notes
 
 ### CANable with Candlelight Driver
