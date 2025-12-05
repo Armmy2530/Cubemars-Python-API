@@ -382,15 +382,3 @@ finally:
 2. Verify motor CAN ID configuration
 3. Try sending a stop command: `motor.set_current(0.0)`
 4. Check for error codes in feedback: `motor.feedback.error_code`
-
-## License
-
-[Add your license here]
-
-## Contributing
-
-[Add contribution guidelines here]
-
-## Support
-
-[Add contact/support information here]
